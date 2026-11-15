@@ -60,15 +60,16 @@ document.addEventListener('change',async e=>{
 async function save(){
  if(!TOKEN||!CFG){say('Vuelve a iniciar sesión para guardar.');return}
  const API=`https://api.github.com/repos/${CFG.repo}/contents/`,H={Authorization:'Bearer '+TOKEN,Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'},JH={...H,'Content-Type':'application/json'},ref='?ref='+encodeURIComponent(CFG.br);
- const put=async(path,content,msg)=>{let sha;const g=await fetch(API+path+ref,{headers:H});if(g.ok)sha=(await g.json()).sha;
-  const r=await fetch(API+path,{method:'PUT',headers:JH,body:JSON.stringify({message:msg,content,branch:CFG.br,sha})});
-  if(!r.ok){let m=r.status;try{m=(await r.json()).message}catch(e){}throw new Error(m)}};
+ const put=async(path,content,msg)=>{for(let t=0;t<3;t++){let sha;const g=await fetch(API+path+ref+'&_='+Date.now(),{headers:H,cache:'no-store'});if(g.ok)sha=(await g.json()).sha;
+  const r=await fetch(API+path,{method:'PUT',headers:JH,cache:'no-store',body:JSON.stringify({message:msg,content,branch:CFG.br,sha})});
+  if(r.ok)return;let m=r.status;try{m=(await r.json()).message}catch(e){}
+  if(r.status===409&&t<2){await new Promise(k=>setTimeout(k,900));continue}throw new Error(m)}};
  const toB64=b=>new Promise((ok,ko)=>{const fr=new FileReader();fr.onload=()=>ok(String(fr.result).split(',')[1]);fr.onerror=ko;fr.readAsDataURL(b)});
  try{
   const up=[];S.folders.forEach(f=>f.images.forEach(im=>{if(PEND.has(im.id))up.push(im)}));let n=0;
   for(const im of up){say(`Subiendo foto ${++n}/${up.length}…`);const pd=PEND.get(im.id);await put(pd.path,await toB64(pd.b),'Añadir foto');LOCAL.set(pd.path,im.id);PEND.delete(im.id);im.id=pd.path}
   const now=new Set();S.folders.forEach(f=>f.images.forEach(im=>now.add(im.id)));
-  for(const old of SAVED){if(!now.has(old)&&old.startsWith('assets/photos/')){const g=await fetch(API+old+ref,{headers:H});
+  for(const old of SAVED){if(!now.has(old)&&old.startsWith('assets/photos/')){const g=await fetch(API+old+ref+'&_='+Date.now(),{headers:H,cache:'no-store'});
    if(g.ok)await fetch(API+old,{method:'DELETE',headers:JH,body:JSON.stringify({message:'Eliminar foto',sha:(await g.json()).sha,branch:CFG.br})})}}
   say('Guardando carpetas…');
   const json=JSON.stringify({folders:S.folders.map(f=>({id:f.id,name:f.name,images:f.images.map(i=>({id:i.id}))}))},null,2);
